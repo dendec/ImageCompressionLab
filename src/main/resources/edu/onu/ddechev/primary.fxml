@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.geometry.*?>
-<?import javafx.scene.canvas.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.image.*?>
 <?import javafx.scene.layout.*?>
@@ -40,12 +39,12 @@
          <children>
             <ScrollPane style="-fx-border-color: #000;">
                <content>
-                  <ImageView fx:id="originalImage" fitHeight="200.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
+                  <ImageView fx:id="originalImageView" fitHeight="200.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
                </content>
             </ScrollPane>
             <ScrollPane prefHeight="200.0" prefWidth="200.0" style="-fx-border-color: #000;" GridPane.columnIndex="1">
                <content>
-                  <Canvas height="200.0" width="200.0" />
+                  <ImageView fx:id="compressedImageView" fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
                </content>
             </ScrollPane>
             <TableView fx:id="imagePropertiesTable" prefHeight="200.0" prefWidth="200.0" GridPane.rowIndex="1" />
