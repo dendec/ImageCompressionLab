@@ -5,6 +5,8 @@ import javafx.scene.image.PixelReader;
 
 public interface Codec {
 
+    Integer HEADER_SIZE = 4;
+
     default byte[] compress(Image image) {
         Integer w = Double.valueOf(image.getWidth()).intValue();
         Integer h = Double.valueOf(image.getHeight()).intValue();

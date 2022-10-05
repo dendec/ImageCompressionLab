@@ -15,8 +15,6 @@ import java.util.stream.IntStream;
 
 public class NoOp implements Codec {
 
-    private final Integer HEADER_SIZE = 4;
-
     @Override
     public byte[] compress(Integer width, Integer height, PixelReader reader) {
         ByteArrayOutputStream stream = new ByteArrayOutputStream();

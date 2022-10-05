@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.image.*?>
 <?import javafx.scene.layout.*?>
@@ -44,14 +43,12 @@
             </ScrollPane>
             <ScrollPane prefHeight="200.0" prefWidth="200.0" style="-fx-border-color: #000;" GridPane.columnIndex="1">
                <content>
-                  <ImageView fx:id="compressedImageView" fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
+                  <ImageView fx:id="restoredImageView" fitHeight="200.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
                </content>
             </ScrollPane>
             <TableView fx:id="imagePropertiesTable" prefHeight="200.0" prefWidth="200.0" GridPane.rowIndex="1" />
+            <TableView fx:id="compressionPropertiesTable" prefHeight="200.0" prefWidth="200.0" GridPane.columnIndex="1" GridPane.rowIndex="1" />
          </children>
-         <padding>
-            <Insets left="10.0" />
-         </padding>
       </GridPane>
    </children>
 </VBox>

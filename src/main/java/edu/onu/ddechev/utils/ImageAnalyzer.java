@@ -1,22 +1,35 @@
 package edu.onu.ddechev.utils;
 
+import edu.onu.ddechev.codecs.Codec;
 import javafx.scene.image.Image;
 import javafx.scene.image.PixelReader;
-import javafx.scene.paint.Color;
 
 import java.util.*;
 import java.util.stream.IntStream;
 
 public class ImageAnalyzer {
+
     private ImageAnalyzer() {
     }
 
-    public static List<Map<String, String>> analyzeImage(Image image) {
-        List<Map<String, String>> result = new ArrayList<>();
-        result.add(getProperty("width", String.valueOf(getWidth(image))));
-        result.add(getProperty("height", String.valueOf(getHeight(image))));
-        result.add(getProperty("size", String.valueOf(getSize(image))));
-        result.add(getProperty("colors", String.valueOf(getColorsCount(image))));
+    public static AnalysisResult analyzeCompression(Image image, Codec codec) {
+        long time = System.currentTimeMillis();
+        byte[] compressed = codec.compress(image);
+        long compressionTime = System.currentTimeMillis() - time;
+        time = System.currentTimeMillis();
+        Image restoredImage = codec.restore(compressed);
+        long restoreTime = System.currentTimeMillis() - time;
+        AnalysisResult result = new AnalysisResult(restoredImage, compressed);
+        int size = getSize(image);
+        int compressedSize = compressed.length - Codec.HEADER_SIZE;
+        result.addImageProperty("width", getWidth(image));
+        result.addImageProperty("height", getHeight(image));
+        result.addImageProperty("size, bytes", size);
+        result.addImageProperty("colors", getColorsCount(image));
+        result.addCompressionProperty("compression time, ms", compressionTime);
+        result.addCompressionProperty("restore time, ms", restoreTime);
+        result.addCompressionProperty("size, bytes", compressedSize);
+        result.addCompressionProperty("ratio", Integer.valueOf(size).doubleValue() / compressedSize);
         return result;
     }
 
@@ -36,14 +49,10 @@ public class ImageAnalyzer {
         PixelReader pixelReader = image.getPixelReader();
         Set<Integer> colors = new HashSet<>();
         IntStream.range(0, getHeight(image)).forEach(y ->
-            IntStream.range(0, getWidth(image)).forEach(x -> {
-                colors.add(pixelReader.getArgb(x, y));
-            })
+                IntStream.range(0, getWidth(image)).forEach(x -> {
+                    colors.add(pixelReader.getArgb(x, y));
+                })
         );
         return colors.size();
-    }
-
-    private static Map<String, String> getProperty(String property, String value) {
-        return Map.of("property", property, "value", value);
     }
 }
