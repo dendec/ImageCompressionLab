@@ -1,5 +1,6 @@
 package edu.onu.ddechev.codecs;
 
+import edu.onu.ddechev.utils.ProfilingUtil;
 import javafx.scene.image.PixelReader;
 import javafx.scene.image.PixelWriter;
 import javafx.scene.paint.Color;
@@ -9,6 +10,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.InvalidParameterException;
 import java.util.*;
+import java.util.function.BiPredicate;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -29,7 +31,7 @@ public class RLE implements Codec {
                     serializedImage.add(reader.getColor(x, y))
                 )
             );
-            List<byte[]> compressedChannels =List.<ToIntFunction<Color>>of(this::red, this::green, this::blue).stream()
+            List<byte[]> compressedChannels =List.<ToIntFunction<Color>>of(this::red, this::green, this::blue).parallelStream()
                     .map(channelExtractor -> compressChannel(serializedImage, channelExtractor))
                     .collect(Collectors.toList());
             for (byte[] bytes: compressedChannels) {
@@ -51,9 +53,11 @@ public class RLE implements Codec {
                 stream.write(channelExtractor.applyAsInt(serializedImage.get(index)));
                 index += samePixelsCount;
             } else {
-                Integer differentPixelsCount = count(index, serializedImage, comparator(channelExtractor).reversed());
+                Integer differentPixelsCount = count(index, serializedImage, comparator(channelExtractor).negate());
                 stream.write(firstByte(false, differentPixelsCount));
-                serializedImage.stream().skip(index).limit(differentPixelsCount).mapToInt(channelExtractor).forEach(stream::write);
+                for (int i = index; i < index+differentPixelsCount; i++) {
+                    stream.write(channelExtractor.applyAsInt(serializedImage.get(i)));
+                }
                 index += differentPixelsCount;
             }
         } while (index < serializedImage.size());
@@ -109,9 +113,9 @@ public class RLE implements Codec {
         return count.byteValue();
     }
 
-    private Integer count(int index, List<Color> serializedImage, Comparator<Color> comparator) {
+    private Integer count(int index, List<Color> serializedImage, BiPredicate<Color, Color> comparator) {
         Color current, next = null;
-        Integer result = 0;
+        int result = 0;
         do {
             current = serializedImage.get(index);
             if (index < serializedImage.size() - 1) {
@@ -119,16 +123,16 @@ public class RLE implements Codec {
             }
             result ++;
             index ++;
-        } while (comparator.compare(current, next) == 0 && index < serializedImage.size() && result < MAX_ENCODE_LENGTH - 1);
+        } while (comparator.test(current, next) && index < serializedImage.size() && result < MAX_ENCODE_LENGTH - 1);
         return result;
     }
 
-    private Comparator<Color> comparator(ToIntFunction<Color> channelExtractor) {
+    private BiPredicate<Color, Color> comparator(ToIntFunction<Color> channelExtractor) {
         return (c1, c2) -> {
             if (Stream.of(c1, c2).anyMatch(Objects::isNull)) {
-                return 255;
+                return false;
             } else {
-                return channelExtractor.applyAsInt(c1) - channelExtractor.applyAsInt(c2);
+                return channelExtractor.applyAsInt(c1) == channelExtractor.applyAsInt(c2);
             }
         };
     }

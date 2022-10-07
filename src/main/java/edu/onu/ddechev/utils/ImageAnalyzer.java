@@ -20,18 +20,15 @@ public class ImageAnalyzer {
         result.addImageProperty("size, bytes", size);
         result.addImageProperty("colors", getColorsCount(image));
         if (codec != null) {
-            long time = System.currentTimeMillis();
-            byte[] compressed = codec.compress(image);
-            long compressionTime = System.currentTimeMillis() - time;
-            time = System.currentTimeMillis();
-            Image restoredImage = codec.restore(compressed);
-            long restoreTime = System.currentTimeMillis() - time;;
+            ProfilingUtil.ProfilingResult<byte[]> compressionResult = ProfilingUtil.executionTime(() -> codec.compress(image));
+            byte[] compressed = compressionResult.getResult();
+            ProfilingUtil.ProfilingResult<Image> restoreResult = ProfilingUtil.executionTime(() -> codec.restore(compressed));
             int compressedSize = compressed.length - Codec.HEADER_SIZE;
-            result.addCompressionProperty("compression time, ms", compressionTime);
-            result.addCompressionProperty("restore time, ms", restoreTime);
+            result.addCompressionProperty("compression time, ms", compressionResult.getExecutionTime());
+            result.addCompressionProperty("restore time, ms", restoreResult.getExecutionTime());
             result.addCompressionProperty("size, bytes", compressedSize);
             result.addCompressionProperty("ratio", Integer.valueOf(size).doubleValue() / compressedSize);
-            result.setRestoredImage(restoredImage);
+            result.setRestoredImage(restoreResult.getResult());
             result.setCompressedData(compressed);
         }
         return result;
