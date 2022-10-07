@@ -8,5 +8,6 @@ module edu.onu.ddechev {
 
     exports edu.onu.ddechev;
     exports edu.onu.ddechev.controllers;
+    exports edu.onu.ddechev.codecs;
     exports edu.onu.ddechev.utils;
 }

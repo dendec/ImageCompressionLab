@@ -13,23 +13,27 @@ public class ImageAnalyzer {
     }
 
     public static AnalysisResult analyzeCompression(Image image, Codec codec) {
-        long time = System.currentTimeMillis();
-        byte[] compressed = codec.compress(image);
-        long compressionTime = System.currentTimeMillis() - time;
-        time = System.currentTimeMillis();
-        Image restoredImage = codec.restore(compressed);
-        long restoreTime = System.currentTimeMillis() - time;
-        AnalysisResult result = new AnalysisResult(restoredImage, compressed);
+        AnalysisResult result = new AnalysisResult();
         int size = getSize(image);
-        int compressedSize = compressed.length - Codec.HEADER_SIZE;
         result.addImageProperty("width", getWidth(image));
         result.addImageProperty("height", getHeight(image));
         result.addImageProperty("size, bytes", size);
         result.addImageProperty("colors", getColorsCount(image));
-        result.addCompressionProperty("compression time, ms", compressionTime);
-        result.addCompressionProperty("restore time, ms", restoreTime);
-        result.addCompressionProperty("size, bytes", compressedSize);
-        result.addCompressionProperty("ratio", Integer.valueOf(size).doubleValue() / compressedSize);
+        if (codec != null) {
+            long time = System.currentTimeMillis();
+            byte[] compressed = codec.compress(image);
+            long compressionTime = System.currentTimeMillis() - time;
+            time = System.currentTimeMillis();
+            Image restoredImage = codec.restore(compressed);
+            long restoreTime = System.currentTimeMillis() - time;;
+            int compressedSize = compressed.length - Codec.HEADER_SIZE;
+            result.addCompressionProperty("compression time, ms", compressionTime);
+            result.addCompressionProperty("restore time, ms", restoreTime);
+            result.addCompressionProperty("size, bytes", compressedSize);
+            result.addCompressionProperty("ratio", Integer.valueOf(size).doubleValue() / compressedSize);
+            result.setRestoredImage(restoredImage);
+            result.setCompressedData(compressed);
+        }
         return result;
     }
 

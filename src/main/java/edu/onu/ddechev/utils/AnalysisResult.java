@@ -27,12 +27,10 @@ public class AnalysisResult {
 
     private final List<Property> imageProperties = new ArrayList<>();
     private final List<Property> compressionProperties = new ArrayList<>();
-    private final Image restoredImage;
-    private final byte[] compressedData;
+    private Image restoredImage;
+    private byte[] compressedData;
 
-    public AnalysisResult(Image restoredImage, byte[] compressedData) {
-        this.restoredImage = restoredImage;
-        this.compressedData = compressedData;
+    public AnalysisResult() {
     }
 
     public void addImageProperty(String name, Object value) {
@@ -57,5 +55,13 @@ public class AnalysisResult {
 
     public byte[] getCompressedData() {
         return compressedData;
+    }
+
+    public void setRestoredImage(Image restoredImage) {
+        this.restoredImage = restoredImage;
+    }
+
+    public void setCompressedData(byte[] compressedData) {
+        this.compressedData = compressedData;
     }
 }
