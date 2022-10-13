@@ -139,15 +139,20 @@ public class PrimaryController implements Initializable {
                 try {
                     codec = maybeCodecClass.get().getDeclaredConstructor().newInstance();
                 } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-                    showError(e.getMessage());
+                    showError(e);
                 }
             }
             updateForm();
         }
     }
 
-    private void showError(String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR, message, ButtonType.OK);
+    private void showError(Exception e) {
+        e.printStackTrace();
+        showError(e.getMessage());
+    }
+
+    private void showError(String s) {
+        Alert alert = new Alert(Alert.AlertType.ERROR, s, ButtonType.OK);
         alert.show();
     }
 

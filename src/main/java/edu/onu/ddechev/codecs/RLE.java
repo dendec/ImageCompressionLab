@@ -1,15 +1,15 @@
 package edu.onu.ddechev.codecs;
 
-import edu.onu.ddechev.utils.ProfilingUtil;
-import javafx.scene.image.PixelReader;
-import javafx.scene.image.PixelWriter;
 import javafx.scene.paint.Color;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.InvalidParameterException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
@@ -21,24 +21,12 @@ public class RLE implements Codec {
     private static final Integer MAX_ENCODE_LENGTH = 1 << 7;
 
     @Override
-    public byte[] compress(Integer width, Integer height, PixelReader reader) {
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        try {
-            stream.write(getHeader(width, height));
-            List<Color> serializedImage = new ArrayList<>();
-            IntStream.range(0, height).forEach(y ->
-                IntStream.range(0, width).forEach(x ->
-                    serializedImage.add(reader.getColor(x, y))
-                )
-            );
-            List<byte[]> compressedChannels =List.<ToIntFunction<Color>>of(this::red, this::green, this::blue).parallelStream()
-                    .map(channelExtractor -> compressChannel(serializedImage, channelExtractor))
-                    .collect(Collectors.toList());
-            for (byte[] bytes: compressedChannels) {
-                stream.write(bytes);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(String.format("Compression error %s", e));
+    public byte[] compress(List<Color> serializedImage, ByteArrayOutputStream stream) throws IOException {
+        List<byte[]> compressedChannels = List.<ToIntFunction<Color>>of(this::red, this::green, this::blue).parallelStream()
+                .map(channelExtractor -> compressChannel(serializedImage, channelExtractor))
+                .collect(Collectors.toList());
+        for (byte[] bytes : compressedChannels) {
+            stream.write(bytes);
         }
         return stream.toByteArray();
     }
@@ -55,7 +43,7 @@ public class RLE implements Codec {
             } else {
                 Integer differentPixelsCount = count(index, serializedImage, comparator(channelExtractor).negate());
                 stream.write(firstByte(false, differentPixelsCount));
-                for (int i = index; i < index+differentPixelsCount; i++) {
+                for (int i = index; i < index + differentPixelsCount; i++) {
                     stream.write(channelExtractor.applyAsInt(serializedImage.get(i)));
                 }
                 index += differentPixelsCount;
@@ -65,19 +53,17 @@ public class RLE implements Codec {
     }
 
     @Override
-    public void restore(byte[] compressed, Integer width, Integer height, PixelWriter writer) {
+    public List<Color> restoreSerializedImage(byte[] compressed, Integer length) {
         ByteBuffer compressedBuffer = ByteBuffer.wrap(compressed);
-        Integer length = width * height;
         List<Double> red = restoreChannel(compressedBuffer, length);
         List<Double> green = restoreChannel(compressedBuffer, length);
         List<Double> blue = restoreChannel(compressedBuffer, length);
-        IntStream.range(0, height).forEach(y ->
-                IntStream.range(0, width).forEach(x -> {
-                    int index = y * width + x;
-                    Color color = Color.color(red.get(index), green.get(index), blue.get(index));
-                    writer.setColor(x, y, color);
-                })
-        );
+        if (List.of(red, green, blue).stream().mapToInt(List::size).allMatch(z -> z == red.size())) {
+            return IntStream.range(0, red.size()).mapToObj(index ->
+                    Color.color(red.get(index), green.get(index), blue.get(index))
+            ).collect(Collectors.toList());
+        }
+        throw new IllegalStateException("Restored different length of channels");
     }
 
     public List<Double> restoreChannel(ByteBuffer compressed, Integer length) {
@@ -121,8 +107,8 @@ public class RLE implements Codec {
             if (index < serializedImage.size() - 1) {
                 next = serializedImage.get(index + 1);
             }
-            result ++;
-            index ++;
+            result++;
+            index++;
         } while (comparator.test(current, next) && index < serializedImage.size() && result < MAX_ENCODE_LENGTH - 1);
         return result;
     }

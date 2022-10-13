@@ -6,13 +6,17 @@ import javafx.scene.image.PixelWriter;
 import javafx.scene.image.WritableImage;
 import javafx.scene.paint.Color;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.IntStream;
 
 public interface Codec {
 
-    List<Class<? extends Codec>> IMPLEMENTATIONS = List.of(NoOp.class, RLE.class);
+    List<Class<? extends Codec>> IMPLEMENTATIONS = List.of(NoOp.class, RLE.class, LZW.class);
 
     Integer HEADER_SIZE = 4;
 
@@ -26,18 +30,44 @@ public interface Codec {
         return ByteBuffer.allocate(HEADER_SIZE).putShort(width.shortValue()).putShort(height.shortValue()).array();
     }
 
-    byte[] compress(Integer width, Integer height, PixelReader reader);
+    default byte[] compress(Integer width, Integer height, PixelReader reader) {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        try {
+            stream.write(getHeader(width, height));
+            List<Color> serializedImage = new ArrayList<>();
+            IntStream.range(0, height).forEach(y ->
+                    IntStream.range(0, width).forEach(x ->
+                            serializedImage.add(reader.getColor(x, y))
+                    )
+            );
+            return compress(serializedImage, stream);
+        } catch (IOException e) {
+            throw new RuntimeException(String.format("Compression error %s", e));
+        }
+    }
+
+    byte[] compress(List<Color> serializedImage, ByteArrayOutputStream stream) throws IOException;
 
     default Image restore(byte[] compressed) {
         ByteBuffer header = ByteBuffer.wrap(Arrays.copyOfRange(compressed, 0, HEADER_SIZE));
         int width = Short.valueOf(header.getShort()).intValue();
         int height = Short.valueOf(header.position(Short.BYTES).getShort()).intValue();
+        int length = width * height;
         WritableImage image = new WritableImage(width, height);
-        restore(Arrays.copyOfRange(compressed, HEADER_SIZE, compressed.length), width, height, image.getPixelWriter());
+        List<Color> serializedImage = restoreSerializedImage(Arrays.copyOfRange(compressed, HEADER_SIZE, compressed.length), length);
+        restore(width, height, serializedImage, image.getPixelWriter());
         return image;
     }
 
-    void restore(byte[] compressed, Integer width, Integer height, PixelWriter writer);
+    List<Color> restoreSerializedImage(byte[] compressed, Integer length);
+
+    default void restore(Integer width, Integer height, List<Color> serializedImage, PixelWriter writer) {
+        IntStream.range(0, height).forEach(y ->
+                IntStream.range(0, width).forEach(x ->
+                        writer.setColor(x, y, serializedImage.get(y * width + x))
+                )
+        );
+    }
 
     default int red(Color color) {
         return channelToInt(color.getRed());
