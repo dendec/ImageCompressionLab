@@ -116,9 +116,9 @@ public class PrimaryController implements Initializable {
                 populateTable(imagePropertiesTable, analysisResult.getImageProperties());
                 populateTable(compressionPropertiesTable, analysisResult.getCompressionProperties());
             } catch (FileNotFoundException e) {
-                showError(String.format("File %s not found", file.getAbsolutePath()));
+                showError(new IllegalStateException(String.format("File %s not found", file.getAbsolutePath()), e));
             } catch (RuntimeException e) {
-                showError(String.format("Error %s", e));
+                showError(e);
             }
         }
     }

@@ -29,8 +29,4 @@ public class NoOp implements Codec {
             return Color.color(r, g, b);
         }).collect(Collectors.toList());
     }
-
-    private double byteToChannel(byte b) {
-        return intToChannel(Byte.toUnsignedInt(b));
-    }
 }

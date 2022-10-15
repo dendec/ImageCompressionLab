@@ -54,12 +54,16 @@ public interface Codec {
         int height = Short.valueOf(header.position(Short.BYTES).getShort()).intValue();
         int length = width * height;
         WritableImage image = new WritableImage(width, height);
-        List<Color> serializedImage = restoreSerializedImage(Arrays.copyOfRange(compressed, HEADER_SIZE, compressed.length), length);
-        restore(width, height, serializedImage, image.getPixelWriter());
-        return image;
+        try {
+            List<Color> serializedImage = restoreSerializedImage(Arrays.copyOfRange(compressed, HEADER_SIZE, compressed.length), length);
+            restore(width, height, serializedImage, image.getPixelWriter());
+            return image;
+        } catch (IOException e) {
+            throw new RuntimeException(String.format("Restoration error %s", e));
+        }
     }
 
-    List<Color> restoreSerializedImage(byte[] compressed, Integer length);
+    List<Color> restoreSerializedImage(byte[] compressed, Integer length) throws IOException;
 
     default void restore(Integer width, Integer height, List<Color> serializedImage, PixelWriter writer) {
         IntStream.range(0, height).forEach(y ->
@@ -87,5 +91,9 @@ public interface Codec {
 
     default double intToChannel(int color) {
         return color / 255.;
+    }
+
+    default double byteToChannel(byte color) {
+        return intToChannel(Byte.toUnsignedInt(color));
     }
 }
