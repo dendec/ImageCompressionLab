@@ -1,16 +1,10 @@
 package edu.onu.ddechev.codecs;
 
-import javafx.scene.paint.Color;
-
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.function.ToIntFunction;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class LZW implements Codec {
@@ -19,24 +13,45 @@ public class LZW implements Codec {
     private static final int CODE_LEN = 12;
 
     @Override
-    public byte[] compress(List<Color> serializedImage, ByteArrayOutputStream stream) {
+    public byte[] compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
         Table table = new Table();
         List<Integer> codes = new ArrayList<>();
         codes.add(CLEAR_CODE);
-        compressChannel(serializedImage, this::red, table, codes);
-        compressChannel(serializedImage, this::green, table, codes);
-        compressChannel(serializedImage, this::blue, table, codes);
+        compressChannel(serializedImage.getR(), table, codes);
+        compressChannel(serializedImage.getG(), table, codes);
+        compressChannel(serializedImage.getB(), table, codes);
         codes.add(END_CODE);
         return writeCodes(codes, stream);
     }
 
+    private void compressChannel(byte[] data, Table table, List<Integer> codes) throws IOException {
+        ByteArrayOutputStream curStr = new ByteArrayOutputStream();
+        for (byte b: data) {
+            ByteArrayOutputStream newStr = new ByteArrayOutputStream();
+            curStr.writeTo(newStr);
+            newStr.write(b);
+            byte[] newStrBytes = newStr.toByteArray();
+            if (!table.has(newStrBytes)) {
+                Integer code = table.get(curStr.toByteArray());
+                codes.add(code);
+                table.add(newStrBytes);
+                curStr.reset();
+            }
+            curStr.write(b);
+        }
+        codes.add(table.get(curStr.toByteArray()));
+    }
+
     @Override
-    public List<Color> restoreSerializedImage(byte[] compressed, Integer length) throws IOException {
+    public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) throws IOException {
         Table table = null;
-        Iterator<Integer> codes = readCodes(compressed).iterator();
+        List<Integer> codesList = readCodes(compressed);
+        Iterator<Integer> codes = codesList.iterator();
+        Integer length = width * height;
         ByteBuffer accumulator = ByteBuffer.allocate(length * 3); // 3 channels
         Integer code = codes.next();
         Integer prevCode = null;
+        int i =0;
         while (code != END_CODE) {
             if (code == CLEAR_CODE) {
                 table = new Table();
@@ -63,38 +78,16 @@ public class LZW implements Codec {
                 }
             }
             code = codes.next();
+            i++;
         }
         accumulator.position(0);
-        byte[] red = new byte[length];
-        accumulator.get(red, 0, length);
-        byte[] green = new byte[length];
-        accumulator.get(green, 0, length);
-        byte[] blue = new byte[length];
-        accumulator.get(blue, 0, length);
-        return IntStream.range(0, length)
-                .mapToObj(i -> Color.color(
-                        byteToChannel(red[i]),
-                        byteToChannel(green[i]),
-                        byteToChannel(blue[i])))
-                .collect(Collectors.toList());
-    }
-
-    private void compressChannel(List<Color> serializedImage, ToIntFunction<Color> channelExtractor, Table table, List<Integer> codes) {
-        List<Byte> curStr = new ArrayList<>();
-        serializedImage.stream()
-                .map(c -> Integer.valueOf(channelExtractor.applyAsInt(c)).byteValue())
-                .forEach(b -> {
-                    List<Byte> newStr = new ArrayList<>(curStr);
-                    newStr.add(b);
-                    if (!table.has(newStr)) {
-                        Integer code = table.get(curStr);
-                        codes.add(code);
-                        table.add(newStr);
-                        curStr.clear();
-                    }
-                    curStr.add(b);
-                });
-        codes.add(table.get(curStr));
+        byte[] r = new byte[length];
+        accumulator.get(r, 0, length);
+        byte[] g = new byte[length];
+        accumulator.get(g, 0, length);
+        byte[] b = new byte[length];
+        accumulator.get(b, 0, length);
+        return new SerializedImage(width, height, r, g, b);
     }
 
     private byte[] writeCodes(List<Integer> codes,  ByteArrayOutputStream stream) {
@@ -103,14 +96,12 @@ public class LZW implements Codec {
         boolean hasNext = false;
         for (Integer code : codes) {
             if (!hasNext) {
-                /*currentByte = code >> (CODE_LEN - Byte.SIZE);
-                nextByte = code & Double.valueOf(Math.pow(2, CODE_LEN - Byte.SIZE) - 1).intValue();*/
-                currentByte = code >> 4;
-                nextByte = (code & 0b00001111) << 4;
+                currentByte = code >> (CODE_LEN - Byte.SIZE);
+                nextByte = (code & 0b00001111) << (CODE_LEN - Byte.SIZE);
                 hasNext = true;
                 stream.write(currentByte);
             } else {
-                currentByte = nextByte | code >> 8;
+                currentByte = nextByte | code >> Byte.SIZE;
                 nextByte = code & 0b11111111;
                 stream.write(currentByte);
                 stream.write(nextByte);
@@ -124,15 +115,19 @@ public class LZW implements Codec {
         return stream.toByteArray();
     }
 
-    private List<Integer> readCodes(byte[] compressed) throws IOException {
-        InputStream stream = new ByteArrayInputStream(compressed);
+    private List<Integer> readCodes(ByteBuffer compressed) {
         List<Integer> codes = new ArrayList<>();
-        while (stream.available() > 0) {
-            byte[] chunks = stream.readNBytes(3);
-            codes.add((Byte.toUnsignedInt(chunks[0]) << 4) + ((Byte.toUnsignedInt(chunks[1]) & 0b11110000) >> 4));
-            if (chunks.length > 2) {
-                codes.add(((Byte.toUnsignedInt(chunks[1]) & 0b00001111) << 8) + Byte.toUnsignedInt(chunks[2]));
+        byte[] chunks = new byte[3];
+        while (compressed.hasRemaining()) {
+            int remaining = compressed.remaining();
+            if (remaining >= 3) {
+                compressed.get(chunks);
+            } else {
+                Arrays.fill(chunks, (byte)0);
+                compressed.get(chunks, 0, remaining);
             }
+            codes.add((Byte.toUnsignedInt(chunks[0]) << 4) + ((Byte.toUnsignedInt(chunks[1]) & 0b11110000) >> 4));
+            codes.add(((Byte.toUnsignedInt(chunks[1]) & 0b00001111) << 8) + Byte.toUnsignedInt(chunks[2]));
         }
         return codes;
     }
@@ -147,11 +142,10 @@ public class LZW implements Codec {
                 String bytesStr = new String(new byte[]{Integer.valueOf(code).byteValue()}, StandardCharsets.ISO_8859_1);
                 tableByBytes.put(bytesStr, code);
                 tableByCode.put(code, bytesStr);
-                //tableByBytes.put(String.valueOf(Character.valueOf((char) code)), code);
             });
         }
 
-        public Integer get(List<Byte> bytes) {
+        public Integer get(byte[] bytes) {
             return tableByBytes.get(toBytesStr(bytes));
         }
 
@@ -159,19 +153,12 @@ public class LZW implements Codec {
             return tableByCode.get(code).getBytes(StandardCharsets.ISO_8859_1);
         }
 
-        public Boolean has(List<Byte> bytesList) {
-            return tableByBytes.containsKey(toBytesStr(bytesList));
+        public Boolean has(byte[] bytes) {
+            return tableByBytes.containsKey(toBytesStr(bytes));
         }
 
         public Boolean has(Integer code) {
             return tableByCode.containsKey(code);
-        }
-
-        public void add(List<Byte> bytesList) {
-            String bytes = toBytesStr(bytesList);
-            Integer code = codeCounter++;
-            tableByBytes.put(bytes, code);
-            tableByCode.put(code, bytes);
         }
 
         public void add(byte[] bytes) {
@@ -181,12 +168,7 @@ public class LZW implements Codec {
             tableByCode.put(code, bytesStr);
         }
 
-        private String toBytesStr(List<Byte> bytesList) {
-            byte[] bytes = new byte[bytesList.size()];
-            int i = 0;
-            for (Byte b: bytesList) {
-                bytes[i++] = b;
-            }
+        private String toBytesStr(byte[] bytes) {
             return new String(bytes, StandardCharsets.ISO_8859_1);
         }
 

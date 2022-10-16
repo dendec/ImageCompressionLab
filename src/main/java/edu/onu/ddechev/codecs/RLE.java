@@ -1,91 +1,84 @@
 package edu.onu.ddechev.codecs;
 
-import javafx.scene.paint.Color;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.InvalidParameterException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.function.BiPredicate;
-import java.util.function.ToIntFunction;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
+import java.util.Arrays;
 
 public class RLE implements Codec {
 
     private static final Integer MAX_ENCODE_LENGTH = 1 << 7;
 
     @Override
-    public byte[] compress(List<Color> serializedImage, ByteArrayOutputStream stream) throws IOException {
-        List<byte[]> compressedChannels = List.<ToIntFunction<Color>>of(this::red, this::green, this::blue).parallelStream()
-                .map(channelExtractor -> compressChannel(serializedImage, channelExtractor))
-                .collect(Collectors.toList());
-        for (byte[] bytes : compressedChannels) {
-            stream.write(bytes);
-        }
+    public byte[] compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
+        stream.write(compressChannel(serializedImage.getR()));
+        stream.write(compressChannel(serializedImage.getG()));
+        stream.write(compressChannel(serializedImage.getB()));
         return stream.toByteArray();
     }
 
-    private byte[] compressChannel(List<Color> serializedImage, ToIntFunction<Color> channelExtractor) {
+    private byte[] compressChannel(byte[] data) {
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         int index = 0;
         do {
-            Integer samePixelsCount = count(index, serializedImage, comparator(channelExtractor));
+            Integer samePixelsCount = count(index, data, true);
             if (samePixelsCount > 1) {
                 stream.write(firstByte(true, samePixelsCount));
-                stream.write(channelExtractor.applyAsInt(serializedImage.get(index)));
+                stream.write(data, index, 1);
                 index += samePixelsCount;
             } else {
-                Integer differentPixelsCount = count(index, serializedImage, comparator(channelExtractor).negate());
+                Integer differentPixelsCount = count(index, data, false);
                 stream.write(firstByte(false, differentPixelsCount));
-                for (int i = index; i < index + differentPixelsCount; i++) {
-                    stream.write(channelExtractor.applyAsInt(serializedImage.get(i)));
-                }
+                stream.write(data, index, differentPixelsCount);
                 index += differentPixelsCount;
             }
-        } while (index < serializedImage.size());
+        } while (index < data.length);
         return stream.toByteArray();
     }
 
     @Override
-    public List<Color> restoreSerializedImage(byte[] compressed, Integer length) {
-        ByteBuffer compressedBuffer = ByteBuffer.wrap(compressed);
-        List<Double> red = restoreChannel(compressedBuffer, length);
-        List<Double> green = restoreChannel(compressedBuffer, length);
-        List<Double> blue = restoreChannel(compressedBuffer, length);
-        if (List.of(red, green, blue).stream().mapToInt(List::size).allMatch(z -> z == red.size())) {
-            return IntStream.range(0, red.size()).mapToObj(index ->
-                    Color.color(red.get(index), green.get(index), blue.get(index))
-            ).collect(Collectors.toList());
-        }
-        throw new IllegalStateException("Restored different length of channels");
+    public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) throws IOException {
+        Integer length = width * height;
+        byte[] r = restoreChannel(compressed, length);
+        byte[] g = restoreChannel(compressed, length);
+        byte[] b = restoreChannel(compressed, length);
+        return new SerializedImage(width, height, r, g, b);
     }
 
-    public List<Double> restoreChannel(ByteBuffer compressed, Integer length) {
-        List<Double> result = new ArrayList<>(length);
+    public byte[] restoreChannel(ByteBuffer compressed, Integer length) {
+        byte[] result = new byte[length];
         int index = 0;
         do {
             int current = Byte.toUnsignedInt(compressed.get());
             int flag = current >> 7;
             int count = current & 0B01111111;
             if (flag == 1) { // repeat
-                int value = Byte.toUnsignedInt(compressed.get());
-                result.addAll(Collections.nCopies(count, intToChannel(value)));
+                byte value = compressed.get();
+                Arrays.fill(result, index, index + count, value);
             } else { // copy
-                byte[] values = new byte[count];
-                compressed.get(values);
-                IntStream.range(0, values.length)
-                        .map(i -> Byte.toUnsignedInt(values[i]))
-                        .mapToObj(this::intToChannel)
-                        .collect(Collectors.toCollection(() -> result));
+                compressed.get(result, index, count);
             }
             index += count;
         } while (index < length);
+        return result;
+    }
+
+    private Integer count(int index, byte[] data, boolean isEquals) {
+        byte current, next;
+        int result = 0;
+        boolean accepted;
+        do {
+            current = data[index];
+            if (index < data.length - 1) {
+                next = data[index + 1];
+                accepted = isEquals == (current == next);
+            } else {
+                accepted = !isEquals;
+            }
+            result++;
+            index++;
+        } while (accepted && index < data.length && result < MAX_ENCODE_LENGTH - 1);
         return result;
     }
 
@@ -97,30 +90,6 @@ public class RLE implements Codec {
             return 1 << 7 | count.byteValue();
         }
         return count.byteValue();
-    }
-
-    private Integer count(int index, List<Color> serializedImage, BiPredicate<Color, Color> comparator) {
-        Color current, next = null;
-        int result = 0;
-        do {
-            current = serializedImage.get(index);
-            if (index < serializedImage.size() - 1) {
-                next = serializedImage.get(index + 1);
-            }
-            result++;
-            index++;
-        } while (comparator.test(current, next) && index < serializedImage.size() && result < MAX_ENCODE_LENGTH - 1);
-        return result;
-    }
-
-    private BiPredicate<Color, Color> comparator(ToIntFunction<Color> channelExtractor) {
-        return (c1, c2) -> {
-            if (Stream.of(c1, c2).anyMatch(Objects::isNull)) {
-                return false;
-            } else {
-                return channelExtractor.applyAsInt(c1) == channelExtractor.applyAsInt(c2);
-            }
-        };
     }
 
 }
