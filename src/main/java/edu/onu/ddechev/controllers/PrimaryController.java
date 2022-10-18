@@ -91,8 +91,13 @@ public class PrimaryController implements Initializable {
 
     private void showImage(ImageView imageView, Image image) {
         if (image != null) {
-            imageView.setFitWidth(image.getWidth());
-            imageView.setFitHeight(image.getHeight());
+            if (image.getWidth() < 16 || image.getHeight() < 16) {
+                imageView.setFitWidth(image.getWidth() * 16);
+                imageView.setFitHeight(image.getHeight() * 16);
+            } else {
+                imageView.setFitWidth(image.getWidth());
+                imageView.setFitHeight(image.getHeight());
+            }
             imageView.setImage(image);
         }
     }

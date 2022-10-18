@@ -3,7 +3,6 @@ package edu.onu.ddechev.codecs;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.IntStream;
 
@@ -14,12 +13,13 @@ public class LZW implements Codec {
 
     @Override
     public byte[] compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
-        Table table = new Table();
         List<Integer> codes = new ArrayList<>();
         codes.add(CLEAR_CODE);
-        compressChannel(serializedImage.getR(), table, codes);
-        compressChannel(serializedImage.getG(), table, codes);
-        compressChannel(serializedImage.getB(), table, codes);
+        compressChannel(serializedImage.getR(), new Table(), codes);
+        codes.add(CLEAR_CODE);
+        compressChannel(serializedImage.getG(), new Table(), codes);
+        codes.add(CLEAR_CODE);
+        compressChannel(serializedImage.getB(), new Table(), codes);
         codes.add(END_CODE);
         return writeCodes(codes, stream);
     }
@@ -40,18 +40,22 @@ public class LZW implements Codec {
             curStr.write(b);
         }
         codes.add(table.get(curStr.toByteArray()));
+        System.out.printf("Table size %d\n", table.size());
+        int capacity = 1 << CODE_LEN;
+        if (table.size() > capacity) {
+            throw new IllegalStateException("Table overflow");
+        }
     }
 
     @Override
-    public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) throws IOException {
+    public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) {
         Table table = null;
         List<Integer> codesList = readCodes(compressed);
         Iterator<Integer> codes = codesList.iterator();
-        Integer length = width * height;
+        int length = width * height;
         ByteBuffer accumulator = ByteBuffer.allocate(length * 3); // 3 channels
         Integer code = codes.next();
         Integer prevCode = null;
-        int i =0;
         while (code != END_CODE) {
             if (code == CLEAR_CODE) {
                 table = new Table();
@@ -62,6 +66,7 @@ public class LZW implements Codec {
                 accumulator.put(table.get(code));
                 prevCode = code;
             } else {
+                assert table != null;
                 if (table.has(code)) {
                     byte[] str = table.get(code);
                     accumulator.put(str);
@@ -78,7 +83,6 @@ public class LZW implements Codec {
                 }
             }
             code = codes.next();
-            i++;
         }
         accumulator.position(0);
         byte[] r = new byte[length];
@@ -139,7 +143,7 @@ public class LZW implements Codec {
 
         public Table() {
             IntStream.range(0, 256).forEach(code -> {
-                String bytesStr = new String(new byte[]{Integer.valueOf(code).byteValue()}, StandardCharsets.ISO_8859_1);
+                String bytesStr = toBytesStr(new byte[]{Integer.valueOf(code).byteValue()});
                 tableByBytes.put(bytesStr, code);
                 tableByCode.put(code, bytesStr);
             });
@@ -150,7 +154,7 @@ public class LZW implements Codec {
         }
 
         public byte[] get(Integer code) {
-            return tableByCode.get(code).getBytes(StandardCharsets.ISO_8859_1);
+            return Base64.getDecoder().decode(tableByCode.get(code));
         }
 
         public Boolean has(byte[] bytes) {
@@ -162,15 +166,18 @@ public class LZW implements Codec {
         }
 
         public void add(byte[] bytes) {
-            String bytesStr = new String(bytes, StandardCharsets.ISO_8859_1);
+            String bytesStr = toBytesStr(bytes);
             Integer code = codeCounter++;
             tableByBytes.put(bytesStr, code);
             tableByCode.put(code, bytesStr);
         }
 
         private String toBytesStr(byte[] bytes) {
-            return new String(bytes, StandardCharsets.ISO_8859_1);
+            return Base64.getEncoder().encodeToString(bytes);
         }
 
+        public Integer size() {
+            return tableByBytes.size();
+        }
     }
 }
