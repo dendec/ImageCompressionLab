@@ -38,6 +38,10 @@ public class SerializedImage {
         return h;
     }
 
+    public int size() {
+        return w*h;
+    }
+
     public byte[] getR() {
         return r;
     }

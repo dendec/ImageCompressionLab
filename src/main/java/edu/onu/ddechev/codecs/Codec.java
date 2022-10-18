@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface Codec {
 
-    List<Class<? extends Codec>> IMPLEMENTATIONS = List.of(NoOp.class, RLE.class, LZW.class);
+    List<Class<? extends Codec>> IMPLEMENTATIONS = List.of(NoOp.class, RLE.class, LZW12.class, LZW16.class, LZW20.class);
 
     Integer HEADER_SIZE = 4;
 
@@ -48,28 +48,4 @@ public interface Codec {
 
     SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) throws IOException;
 
-//
-//    default int red(Color color) {
-//        return channelToInt(color.getRed());
-//    }
-//
-//    default int green(Color color) {
-//        return channelToInt(color.getGreen());
-//    }
-//
-//    default int blue(Color color) {
-//        return channelToInt(color.getBlue());
-//    }
-//
-//    default int channelToInt(double channel) {
-//        return Long.valueOf(Math.round(channel * 255)).intValue();
-//    }
-//
-//    default double intToChannel(int color) {
-//        return color / 255.;
-//    }
-//
-//    default double byteToChannel(byte color) {
-//        return intToChannel(Byte.toUnsignedInt(color));
-//    }
 }

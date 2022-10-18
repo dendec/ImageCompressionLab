@@ -6,22 +6,22 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.IntStream;
 
-public class LZW implements Codec {
+public abstract class LZW implements Codec {
     private static final int CLEAR_CODE = 256;
     private static final int END_CODE = 257;
-    private static final int CODE_LEN = 12;
 
     @Override
     public byte[] compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
         List<Integer> codes = new ArrayList<>();
+        byte[] data = ByteBuffer.allocate(serializedImage.size() * 3)
+                .put(serializedImage.getR())
+                .put(serializedImage.getG())
+                .put(serializedImage.getB()).array();
         codes.add(CLEAR_CODE);
-        compressChannel(serializedImage.getR(), new Table(), codes);
-        codes.add(CLEAR_CODE);
-        compressChannel(serializedImage.getG(), new Table(), codes);
-        codes.add(CLEAR_CODE);
-        compressChannel(serializedImage.getB(), new Table(), codes);
+        compressChannel(data, new Table(getCodeLength()), codes);
         codes.add(END_CODE);
-        return writeCodes(codes, stream);
+        writeCodes(codes, stream);
+        return stream.toByteArray();
     }
 
     private void compressChannel(byte[] data, Table table, List<Integer> codes) throws IOException {
@@ -41,7 +41,7 @@ public class LZW implements Codec {
         }
         codes.add(table.get(curStr.toByteArray()));
         System.out.printf("Table size %d\n", table.size());
-        int capacity = 1 << CODE_LEN;
+        int capacity = 1 << getCodeLength();
         if (table.size() > capacity) {
             throw new IllegalStateException("Table overflow");
         }
@@ -58,7 +58,7 @@ public class LZW implements Codec {
         Integer prevCode = null;
         while (code != END_CODE) {
             if (code == CLEAR_CODE) {
-                table = new Table();
+                table = new Table(getCodeLength());
                 code = codes.next();
                 if (code == END_CODE) {
                     break;
@@ -94,59 +94,37 @@ public class LZW implements Codec {
         return new SerializedImage(width, height, r, g, b);
     }
 
-    private byte[] writeCodes(List<Integer> codes,  ByteArrayOutputStream stream) {
-        int currentByte;
-        int nextByte = 0;
-        boolean hasNext = false;
-        for (Integer code : codes) {
-            if (!hasNext) {
-                currentByte = code >> (CODE_LEN - Byte.SIZE);
-                nextByte = (code & 0b00001111) << (CODE_LEN - Byte.SIZE);
-                hasNext = true;
-                stream.write(currentByte);
-            } else {
-                currentByte = nextByte | code >> Byte.SIZE;
-                nextByte = code & 0b11111111;
-                stream.write(currentByte);
-                stream.write(nextByte);
-                hasNext = false;
-                nextByte = 0;
-            }
-        }
-        if (hasNext) {
-            stream.write(nextByte);
-        }
-        return stream.toByteArray();
-    }
+    protected abstract List<Integer> readCodes(ByteBuffer compressed);
 
-    private List<Integer> readCodes(ByteBuffer compressed) {
-        List<Integer> codes = new ArrayList<>();
-        byte[] chunks = new byte[3];
-        while (compressed.hasRemaining()) {
-            int remaining = compressed.remaining();
-            if (remaining >= 3) {
-                compressed.get(chunks);
-            } else {
-                Arrays.fill(chunks, (byte)0);
-                compressed.get(chunks, 0, remaining);
-            }
-            codes.add((Byte.toUnsignedInt(chunks[0]) << 4) + ((Byte.toUnsignedInt(chunks[1]) & 0b11110000) >> 4));
-            codes.add(((Byte.toUnsignedInt(chunks[1]) & 0b00001111) << 8) + Byte.toUnsignedInt(chunks[2]));
-        }
-        return codes;
-    }
+    protected abstract void writeCodes(List<Integer> codes, ByteArrayOutputStream stream) throws IOException;
+
+    protected abstract Integer getCodeLength();
 
     private static class Table {
-        private final Map<String, Integer> tableByBytes = new HashMap<>();
-        private final Map<Integer, String> tableByCode = new HashMap<>();
+        private final Map<String, Integer> tableByBytes;
+        private final Map<Integer, String> tableByCode;
         private Integer codeCounter = 258;
 
-        public Table() {
+        public Table(Integer codeLength) {
+            if (codeLength == null) {
+                tableByBytes = new HashMap<>();
+                tableByCode = new HashMap<>();
+            } else {
+                if (codeLength > 24) {
+                    throw new IllegalStateException("Code length too long");
+                }
+                tableByBytes = new HashMap<>(1 << codeLength);
+                tableByCode = new HashMap<>(1 << codeLength);
+            }
             IntStream.range(0, 256).forEach(code -> {
                 String bytesStr = toBytesStr(new byte[]{Integer.valueOf(code).byteValue()});
                 tableByBytes.put(bytesStr, code);
                 tableByCode.put(code, bytesStr);
             });
+        }
+
+        public Table() {
+            this(null);
         }
 
         public Integer get(byte[] bytes) {

@@ -3,7 +3,7 @@ package edu.onu.ddechev.controllers;
 import edu.onu.ddechev.App;
 import edu.onu.ddechev.codecs.Codec;
 import edu.onu.ddechev.utils.AnalysisResult;
-import edu.onu.ddechev.utils.ImageAnalyzer;
+import edu.onu.ddechev.utils.CompressionAnalyzer;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -70,10 +70,10 @@ public class PrimaryController implements Initializable {
     private void initializeTable(TableView<AnalysisResult.Property> table) {
         TableColumn<AnalysisResult.Property, String> column1 = new TableColumn<>("Property");
         column1.setCellValueFactory(new PropertyValueFactory<>("name"));
-        column1.prefWidthProperty().bind(table.widthProperty().divide(2).add(-2));
+        column1.prefWidthProperty().bind(table.widthProperty().divide(4));
         TableColumn<AnalysisResult.Property, String> column2 = new TableColumn<>("Value");
         column2.setCellValueFactory(new PropertyValueFactory<>("value"));
-        column2.prefWidthProperty().bind(table.widthProperty().divide(2).add(-2));
+        column2.prefWidthProperty().bind(table.widthProperty().divide(4).multiply(3).add(-2));
         table.getColumns().addAll(column1, column2);
     }
 
@@ -116,7 +116,7 @@ public class PrimaryController implements Initializable {
             try {
                 image = new Image(new FileInputStream(file));
                 showImage(originalImageView, image);
-                AnalysisResult analysisResult = ImageAnalyzer.analyzeCompression(image, codec);
+                AnalysisResult analysisResult = CompressionAnalyzer.analyzeCompression(file, image, codec);
                 showImage(restoredImageView, analysisResult.getRestoredImage());
                 populateTable(imagePropertiesTable, analysisResult.getImageProperties());
                 populateTable(compressionPropertiesTable, analysisResult.getCompressionProperties());
