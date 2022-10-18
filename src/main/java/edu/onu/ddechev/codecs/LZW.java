@@ -10,6 +10,8 @@ public abstract class LZW implements Codec {
     private static final int CLEAR_CODE = 256;
     private static final int END_CODE = 257;
 
+    private Table table;
+
     @Override
     public byte[] compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
         List<Integer> codes = new ArrayList<>();
@@ -18,13 +20,14 @@ public abstract class LZW implements Codec {
                 .put(serializedImage.getG())
                 .put(serializedImage.getB()).array();
         codes.add(CLEAR_CODE);
-        compressChannel(data, new Table(getCodeLength()), codes);
+        table = new Table(getCodeLength());
+        compressChannel(data, codes);
         codes.add(END_CODE);
         writeCodes(codes, stream);
         return stream.toByteArray();
     }
 
-    private void compressChannel(byte[] data, Table table, List<Integer> codes) throws IOException {
+    private void compressChannel(byte[] data, List<Integer> codes) throws IOException {
         ByteArrayOutputStream curStr = new ByteArrayOutputStream();
         for (byte b: data) {
             ByteArrayOutputStream newStr = new ByteArrayOutputStream();
@@ -40,7 +43,6 @@ public abstract class LZW implements Codec {
             curStr.write(b);
         }
         codes.add(table.get(curStr.toByteArray()));
-        System.out.printf("Table size %d\n", table.size());
         int capacity = 1 << getCodeLength();
         if (table.size() > capacity) {
             throw new IllegalStateException("Table overflow");
@@ -49,7 +51,6 @@ public abstract class LZW implements Codec {
 
     @Override
     public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) {
-        Table table = null;
         List<Integer> codesList = readCodes(compressed);
         Iterator<Integer> codes = codesList.iterator();
         int length = width * height;
@@ -94,11 +95,18 @@ public abstract class LZW implements Codec {
         return new SerializedImage(width, height, r, g, b);
     }
 
+    @Override
+    public Map<String, Object> getLastCompressionProperties() {
+        return Map.of(
+                "table size", table.size()
+        );
+    }
+
+    protected abstract Integer getCodeLength();
+
     protected abstract List<Integer> readCodes(ByteBuffer compressed);
 
     protected abstract void writeCodes(List<Integer> codes, ByteArrayOutputStream stream) throws IOException;
-
-    protected abstract Integer getCodeLength();
 
     private static class Table {
         private final Map<String, Integer> tableByBytes;

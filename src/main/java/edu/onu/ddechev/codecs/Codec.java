@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 
 public interface Codec {
 
@@ -47,5 +48,7 @@ public interface Codec {
     }
 
     SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) throws IOException;
+
+    Map<String, Object> getLastCompressionProperties();
 
 }

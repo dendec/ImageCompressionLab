@@ -4,11 +4,18 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.InvalidParameterException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class RLE implements Codec {
 
     private static final Integer MAX_ENCODE_LENGTH = 1 << 7;
+    private final List<Integer> sameCounts = new ArrayList<>();
+    private final List<Integer> diffCounts = new ArrayList<>();
 
     @Override
     public byte[] compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
@@ -40,6 +47,8 @@ public class RLE implements Codec {
     @Override
     public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) throws IOException {
         Integer length = width * height;
+        sameCounts.clear();
+        diffCounts.clear();
         byte[] r = restoreChannel(compressed, length);
         byte[] g = restoreChannel(compressed, length);
         byte[] b = restoreChannel(compressed, length);
@@ -56,8 +65,10 @@ public class RLE implements Codec {
             if (flag == 1) { // repeat
                 byte value = compressed.get();
                 Arrays.fill(result, index, index + count, value);
+                sameCounts.add(count);
             } else { // copy
                 compressed.get(result, index, count);
+                diffCounts.add(count);
             }
             index += count;
         } while (index < length);
@@ -90,6 +101,18 @@ public class RLE implements Codec {
             return 1 << 7 | count.byteValue();
         }
         return count.byteValue();
+    }
+
+    @Override
+    public Map<String, Object> getLastCompressionProperties() {
+        return Map.of(
+                "same count", sameCounts.size(),
+                "same max", sameCounts.stream().mapToInt(Integer::intValue).max().orElse(0),
+                "same average", sameCounts.stream().mapToInt(Integer::intValue).average().orElse(0.),
+                "diff count", diffCounts.size(),
+                "diff max", diffCounts.stream().mapToInt(Integer::intValue).max().orElse(0),
+                "diff average", diffCounts.stream().mapToInt(Integer::intValue).average().orElse(0.)
+        );
     }
 
 }

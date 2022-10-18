@@ -32,6 +32,7 @@ public class CompressionAnalyzer {
             result.addCompressionProperty("restore time, ms", restoreResult.getExecutionTime());
             result.addCompressionProperty("size, bytes", compressedSize);
             result.addCompressionProperty("ratio", Integer.valueOf(size).doubleValue() / compressedSize);
+            new TreeMap<String, Object>(codec.getLastCompressionProperties()).forEach(result::addCompressionProperty);
             result.setRestoredImage(restoreResult.getResult());
             result.setCompressedData(compressed);
         }

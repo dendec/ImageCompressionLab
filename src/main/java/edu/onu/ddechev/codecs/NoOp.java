@@ -3,6 +3,7 @@ package edu.onu.ddechev.codecs;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Map;
 
 public class NoOp implements Codec {
 
@@ -25,5 +26,10 @@ public class NoOp implements Codec {
                 .get(g, 0, length)
                 .get(b, 0, length);
         return new SerializedImage(width, height, r, g, b);
+    }
+
+    @Override
+    public Map<String, Object> getLastCompressionProperties() {
+        return Map.of();
     }
 }
