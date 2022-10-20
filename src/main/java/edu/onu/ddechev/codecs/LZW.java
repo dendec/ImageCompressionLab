@@ -4,13 +4,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public abstract class LZW implements Codec {
     private static final int CLEAR_CODE = 256;
     private static final int END_CODE = 257;
 
-    private Table table;
+    private Integer tablesCount;
+    private Integer knownCodeCount;
+    private Integer unknownCodeCount;
 
     @Override
     public byte[] compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
@@ -20,16 +23,16 @@ public abstract class LZW implements Codec {
                 .put(serializedImage.getG())
                 .put(serializedImage.getB()).array();
         codes.add(CLEAR_CODE);
-        table = new Table(getCodeLength());
-        compressChannel(data, codes);
+        compress(data, codes);
         codes.add(END_CODE);
         writeCodes(codes, stream);
         return stream.toByteArray();
     }
 
-    private void compressChannel(byte[] data, List<Integer> codes) throws IOException {
+    private void compress(byte[] data, List<Integer> codes) throws IOException {
+        Table table = new Table(getCodeLength());
         ByteArrayOutputStream curStr = new ByteArrayOutputStream();
-        for (byte b: data) {
+        for (byte b : data) {
             ByteArrayOutputStream newStr = new ByteArrayOutputStream();
             curStr.writeTo(newStr);
             newStr.write(b);
@@ -38,51 +41,54 @@ public abstract class LZW implements Codec {
                 Integer code = table.get(curStr.toByteArray());
                 codes.add(code);
                 table.add(newStrBytes);
+                if (!table.hasCapacity()) {
+                    table.init();
+                    codes.add(CLEAR_CODE);
+                }
                 curStr.reset();
             }
             curStr.write(b);
         }
         codes.add(table.get(curStr.toByteArray()));
-        int capacity = 1 << getCodeLength();
-        if (table.size() > capacity) {
-            throw new IllegalStateException("Table overflow");
-        }
     }
 
     @Override
-    public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) {
+    public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) throws IOException {
+        Table table = new Table(getCodeLength());
         List<Integer> codesList = readCodes(compressed);
         Iterator<Integer> codes = codesList.iterator();
         int length = width * height;
         ByteBuffer accumulator = ByteBuffer.allocate(length * 3); // 3 channels
         Integer code = codes.next();
         Integer prevCode = null;
+        tablesCount = 0;
+        knownCodeCount = 0;
+        unknownCodeCount = 0;
+        byte[] newChain, output, prevStr;
         while (code != END_CODE) {
             if (code == CLEAR_CODE) {
-                table = new Table(getCodeLength());
+                table.init();
+                tablesCount++;
                 code = codes.next();
                 if (code == END_CODE) {
                     break;
                 }
                 accumulator.put(table.get(code));
-                prevCode = code;
             } else {
-                assert table != null;
+                prevStr = table.get(prevCode);
                 if (table.has(code)) {
-                    byte[] str = table.get(code);
-                    accumulator.put(str);
-                    byte[] prevStr = table.get(prevCode);
-                    byte[] newStr = ByteBuffer.allocate(prevStr.length + 1).put(prevStr).put(str[0]).array();
-                    table.add(newStr);
-                    prevCode = code;
+                    knownCodeCount++;
+                    output = table.get(code);
+                    newChain = ByteBuffer.allocate(prevStr.length + 1).put(prevStr).put(output[0]).array();
                 } else {
-                    byte[] prevStr = table.get(prevCode);
-                    byte[] newStr = ByteBuffer.allocate(prevStr.length + 1).put(prevStr).put(prevStr[0]).array();
-                    accumulator.put(newStr);
-                    table.add(newStr);
-                    prevCode = code;
+                    unknownCodeCount++;
+                    newChain = ByteBuffer.allocate(prevStr.length + 1).put(prevStr).put(prevStr[0]).array();
+                    output = newChain;
                 }
+                accumulator.put(output);
+                table.add(newChain);
             }
+            prevCode = code;
             code = codes.next();
         }
         accumulator.position(0);
@@ -98,7 +104,9 @@ public abstract class LZW implements Codec {
     @Override
     public Map<String, Object> getLastCompressionProperties() {
         return Map.of(
-                "table size", table.size()
+                "tables count", tablesCount,
+                "known code count", knownCodeCount,
+                "unknown code count", unknownCodeCount
         );
     }
 
@@ -111,28 +119,38 @@ public abstract class LZW implements Codec {
     private static class Table {
         private final Map<String, Integer> tableByBytes;
         private final Map<Integer, String> tableByCode;
-        private Integer codeCounter = 258;
+        private Integer codeCounter;
+        private final Integer capacity;
 
         public Table(Integer codeLength) {
             if (codeLength == null) {
                 tableByBytes = new HashMap<>();
                 tableByCode = new HashMap<>();
+                this.capacity = null;
             } else {
+                this.capacity = 1 << codeLength;
                 if (codeLength > 24) {
                     throw new IllegalStateException("Code length too long");
                 }
                 tableByBytes = new HashMap<>(1 << codeLength);
                 tableByCode = new HashMap<>(1 << codeLength);
             }
+            init();
+        }
+
+        public Table() {
+            this(null);
+        }
+
+        public void init() {
+            tableByBytes.clear();
+            tableByCode.clear();
             IntStream.range(0, 256).forEach(code -> {
                 String bytesStr = toBytesStr(new byte[]{Integer.valueOf(code).byteValue()});
                 tableByBytes.put(bytesStr, code);
                 tableByCode.put(code, bytesStr);
             });
-        }
-
-        public Table() {
-            this(null);
+            codeCounter = 258;
         }
 
         public Integer get(byte[] bytes) {
@@ -152,6 +170,9 @@ public abstract class LZW implements Codec {
         }
 
         public void add(byte[] bytes) {
+            if (size().equals(capacity)) {
+                throw new IllegalStateException("Table overflow");
+            }
             String bytesStr = toBytesStr(bytes);
             Integer code = codeCounter++;
             tableByBytes.put(bytesStr, code);
@@ -164,6 +185,19 @@ public abstract class LZW implements Codec {
 
         public Integer size() {
             return tableByBytes.size();
+        }
+
+        public Boolean hasCapacity() {
+            return (capacity == null) || (size() < capacity);
+        }
+
+        @Override
+        public String toString() {
+            return tableByCode.entrySet().stream()
+                    .filter(e -> e.getKey() >= 258)
+                    .sorted(Comparator.comparingInt(Map.Entry::getKey))
+                    .map(e -> String.format("%d: %s", e.getKey(), e.getValue()))
+                    .collect(Collectors.joining("\n"));
         }
     }
 }
