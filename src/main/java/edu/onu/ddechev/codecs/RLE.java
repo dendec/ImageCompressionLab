@@ -8,8 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class RLE implements Codec {
 
@@ -18,11 +16,10 @@ public class RLE implements Codec {
     private final List<Integer> diffCounts = new ArrayList<>();
 
     @Override
-    public byte[] compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
+    public void compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
         stream.write(compressChannel(serializedImage.getR()));
         stream.write(compressChannel(serializedImage.getG()));
         stream.write(compressChannel(serializedImage.getB()));
-        return stream.toByteArray();
     }
 
     private byte[] compressChannel(byte[] data) {

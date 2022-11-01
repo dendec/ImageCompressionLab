@@ -8,11 +8,10 @@ import java.util.Map;
 public class NoOp implements Codec {
 
     @Override
-    public byte[] compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
+    public void compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
         stream.write(serializedImage.getR());
         stream.write(serializedImage.getG());
         stream.write(serializedImage.getB());
-        return stream.toByteArray();
     }
 
     @Override

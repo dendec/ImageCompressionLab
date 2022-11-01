@@ -1,6 +1,9 @@
 package edu.onu.ddechev.codecs;
 
-import javafx.scene.image.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.PixelReader;
+import javafx.scene.image.WritableImage;
+import javafx.scene.image.WritablePixelFormat;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -10,7 +13,7 @@ import java.util.Map;
 
 public interface Codec {
 
-    List<Class<? extends Codec>> IMPLEMENTATIONS = List.of(NoOp.class, RLE.class, LZW12.class, LZW16.class, LZW20.class);
+    List<Class<? extends Codec>> IMPLEMENTATIONS = List.of(NoOp.class, RLE.class, LZW12.class, Huffman.class);
 
     Integer HEADER_SIZE = 4;
 
@@ -25,13 +28,14 @@ public interface Codec {
             int[] buffer = new int[width*height];
             reader.getPixels(0,0, width, height, WritablePixelFormat.getIntArgbInstance(), buffer, 0, width);
             serializedImage.add(buffer);
-            return compress(serializedImage, stream);
+            compress(serializedImage, stream);
+            return stream.toByteArray();
         } catch (IOException e) {
             throw new RuntimeException(String.format("Compression error %s", e));
         }
     }
 
-    byte[] compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException;
+    void compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException;
 
     default Image restore(byte[] compressed) {
         ByteBuffer buffer = ByteBuffer.wrap(compressed);

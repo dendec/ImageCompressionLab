@@ -16,17 +16,12 @@ public abstract class LZW implements Codec {
     private Integer unknownCodeCount;
 
     @Override
-    public byte[] compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
+    public void compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
         List<Integer> codes = new ArrayList<>();
-        byte[] data = ByteBuffer.allocate(serializedImage.size() * 3)
-                .put(serializedImage.getR())
-                .put(serializedImage.getG())
-                .put(serializedImage.getB()).array();
         codes.add(CLEAR_CODE);
-        compress(data, codes);
+        compress(serializedImage.data(), codes);
         codes.add(END_CODE);
         writeCodes(codes, stream);
-        return stream.toByteArray();
     }
 
     private void compress(byte[] data, List<Integer> codes) throws IOException {
@@ -53,7 +48,7 @@ public abstract class LZW implements Codec {
     }
 
     @Override
-    public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) throws IOException {
+    public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) {
         Table table = new Table(getCodeLength());
         List<Integer> codesList = readCodes(compressed);
         Iterator<Integer> codes = codesList.iterator();
@@ -92,13 +87,13 @@ public abstract class LZW implements Codec {
             code = codes.next();
         }
         accumulator.position(0);
-        byte[] r = new byte[length];
+        /*byte[] r = new byte[length];
         accumulator.get(r, 0, length);
         byte[] g = new byte[length];
         accumulator.get(g, 0, length);
         byte[] b = new byte[length];
-        accumulator.get(b, 0, length);
-        return new SerializedImage(width, height, r, g, b);
+        accumulator.get(b, 0, length);*/
+        return new SerializedImage(width, height, accumulator.array());
     }
 
     @Override
@@ -136,10 +131,6 @@ public abstract class LZW implements Codec {
                 tableByCode = new HashMap<>(1 << codeLength);
             }
             init();
-        }
-
-        public Table() {
-            this(null);
         }
 
         public void init() {

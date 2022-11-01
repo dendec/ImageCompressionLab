@@ -5,7 +5,9 @@ import javafx.scene.image.Image;
 import javafx.scene.image.PixelReader;
 
 import java.io.File;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.IntStream;
 
 public class CompressionAnalyzer {

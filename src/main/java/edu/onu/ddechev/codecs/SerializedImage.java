@@ -7,16 +7,15 @@ import java.security.InvalidParameterException;
 public class SerializedImage {
     private final int w;
     private final int h;
-    private final byte[] r;
-    private final byte[] g;
-    private final byte[] b;
+    private final byte[] data;
+    private final static int R_OFFSET = 0;
+    private final static int G_OFFSET = 1;
+    private final static int B_OFFSET = 2;
 
     public SerializedImage(int w, int h) {
         this.w = w;
         this.h = h;
-        this.r = new byte[w*h];
-        this.g = new byte[w*h];
-        this.b = new byte[w*h];
+        this.data = new byte[w*h*3];
     }
 
     public SerializedImage(int w, int h, byte[] r, byte[] g, byte[] b) {
@@ -25,9 +24,21 @@ public class SerializedImage {
         }
         this.w = w;
         this.h = h;
-        this.r = r;
-        this.g = g;
-        this.b = b;
+        this.data = new byte[w*h*3];
+        for (int i = 0; i < w*h; i++) {
+            data[i*3+R_OFFSET] = r[i];
+            data[i*3+G_OFFSET] = g[i];
+            data[i*3+B_OFFSET] = b[i];
+        }
+    }
+
+    public SerializedImage(int w, int h, byte[] data) {
+        if (data.length != w*h*3) {
+            throw new InvalidParameterException("invalid data length");
+        }
+        this.w = w;
+        this.h = h;
+        this.data = data;
     }
 
     public int getWidth() {
@@ -43,26 +54,39 @@ public class SerializedImage {
     }
 
     public byte[] getR() {
-        return r;
+        return getColor(R_OFFSET);
     }
 
     public byte[] getG() {
-        return g;
+        return getColor(G_OFFSET);
     }
 
     public byte[] getB() {
-        return b;
+        return getColor(B_OFFSET);
+    }
+
+    private byte[] getColor(int offset) {
+        int size = size();
+        byte[] r = new byte[size];
+        for (int i = 0; i < size; i++) {
+            r[i] = data[i*3+offset];
+        }
+        return r;
+    }
+
+    public byte[] data() {
+        return data;
     }
 
     public void add(int x, int y, Color c) {
-        int i = y*w + x;
-        r[i] = channelToByte(c.getRed());
-        g[i] = channelToByte(c.getGreen());
-        b[i] = channelToByte(c.getBlue());
+        int i = (y*w + x)*3;
+        data[i*3+R_OFFSET] = channelToByte(c.getRed());
+        data[i*3+G_OFFSET] = channelToByte(c.getGreen());
+        data[i*3+B_OFFSET] = channelToByte(c.getBlue());
     }
 
     public void add(int x, int y, int c) { //ARGB
-        int i = y*w + x;
+        int i = (y*w + x)*3;
         add(i, c);
     }
 
@@ -73,25 +97,18 @@ public class SerializedImage {
     }
 
     private void add(int i, int c) { //ARGB
-        r[i] = Integer.valueOf((c & 0x00FF0000) >> 16).byteValue();
-        g[i] = Integer.valueOf((c & 0x0000FF00) >> 8).byteValue();
-        b[i] = Integer.valueOf((c & 0x000000FF)).byteValue();
+        data[i*3+R_OFFSET] = Integer.valueOf((c & 0x00FF0000) >> 16).byteValue();
+        data[i*3+G_OFFSET] = Integer.valueOf((c & 0x0000FF00) >> 8).byteValue();
+        data[i*3+B_OFFSET] = Integer.valueOf((c & 0x000000FF)).byteValue();
     }
 
-
     public Color get(int x, int y) {
-        int i = y*w + x;
-        return Color.color(byteToChannel(r[i]), byteToChannel(g[i]), byteToChannel(b[i]));
+        int i = (y*w + x)*3;
+        return Color.color(byteToChannel(data[i+R_OFFSET]), byteToChannel(data[i+G_OFFSET]), byteToChannel(data[i+B_OFFSET]));
     }
 
     public byte[] get() {
-        byte[] result = new byte[w*h*3];
-        for (int i = 0; i < w*h; i++) {
-            result[3*i] = r[i];
-            result[3*i+1] = g[i];
-            result[3*i+2] = b[i];
-        }
-        return result;
+        return data;
     }
 
     private byte channelToByte(double channel) {
