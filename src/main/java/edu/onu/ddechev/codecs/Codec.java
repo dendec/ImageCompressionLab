@@ -35,15 +35,22 @@ public interface Codec {
         }
     }
 
-    void compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException;
+    default void compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
+        stream.write(compress(serializedImage.data()));
+    }
 
-    default Image restore(byte[] compressed) {
+    byte[] compress(byte[] data) throws IOException;
+
+    default Image restoreImage(byte[] compressed) {
         ByteBuffer buffer = ByteBuffer.wrap(compressed);
         int width = Short.valueOf(buffer.getShort()).intValue();
         int height = Short.valueOf(buffer.getShort()).intValue();
         WritableImage image = new WritableImage(width, height);
+        buffer = buffer.slice();
+        byte[] compressedData = new byte[buffer.limit()];
+        buffer.get(compressedData);
         try {
-            SerializedImage serializedImage = restore(buffer, width, height);
+            SerializedImage serializedImage = new SerializedImage(width, height, restore(compressedData));//(buffer, width, height);
             image.getPixelWriter().setPixels(0, 0, serializedImage.getWidth(), serializedImage.getHeight(), WritablePixelFormat.getByteRgbInstance(), serializedImage.get(), 0, serializedImage.getWidth() * 3);
             return image;
         } catch (IOException e) {
@@ -51,7 +58,7 @@ public interface Codec {
         }
     }
 
-    SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) throws IOException;
+    byte[] restore(byte[] compressed) throws IOException;
 
     Map<String, Object> getLastCompressionProperties();
 

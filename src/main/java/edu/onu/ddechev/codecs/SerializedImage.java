@@ -33,8 +33,8 @@ public class SerializedImage {
     }
 
     public SerializedImage(int w, int h, byte[] data) {
-        if (data.length != w*h*3) {
-            throw new InvalidParameterException("invalid data length");
+        if (data.length < w*h*3) {
+            throw new InvalidParameterException(String.format("invalid data length %d: expected %d", data.length, w*h*3));
         }
         this.w = w;
         this.h = h;

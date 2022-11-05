@@ -12,13 +12,20 @@ public class Huffman implements Codec {
     Map<Byte, CodeValue> dict;
 
     @Override
-    public void compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
-        byte[] data = serializedImage.data();
+    public byte[] compress(byte[] data) throws IOException {
         Map<Byte, Integer> frequencyTable = getFrequencyTable(data);
         Node<TreeValue> node = buildTree(frequencyTable);
         dict = new HashMap<>();
         buildDict(node, dict, new boolean[]{});
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
         compress(data, stream, dict);
+        return stream.toByteArray();
+    }
+
+    @Override
+    public byte[] restore(byte[] compressed) {
+        ByteBuffer buffer = ByteBuffer.wrap(compressed);
+        return restore(buffer, readDict(buffer), compressed.length * 8);
     }
 
     void compress(byte[] data, ByteArrayOutputStream stream, Map<Byte, CodeValue> dict) throws IOException {
@@ -44,7 +51,7 @@ public class Huffman implements Codec {
         for (Map.Entry<Byte, CodeValue> entry: dict.entrySet()) {
             dataOutputStream.writeByte(entry.getKey());
             dataOutputStream.writeByte(entry.getValue().length);
-            dataOutputStream.writeShort(entry.getValue().value);
+            dataOutputStream.writeInt(entry.getValue().value);
         }
     }
 
@@ -97,11 +104,11 @@ public class Huffman implements Codec {
         return queue.poll();
     }
 
-    @Override
-    public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) {
-        byte[] data = restore(compressed, readDict(compressed), width * height * 3);
-        return new SerializedImage(width, height, data);
-    }
+//    @Override
+//    public SerializedImage restoreImage(ByteBuffer compressed, Integer width, Integer height) {
+//        byte[] data = restore(compressed, readDict(compressed), width * height * 3);
+//        return new SerializedImage(width, height, data);
+//    }
 
     byte[] restore(ByteBuffer compressed, Map<CodeValue, Byte> dict, int len) {
         ByteBuffer restored = ByteBuffer.allocate(len);
@@ -109,7 +116,7 @@ public class Huffman implements Codec {
         Map<Integer, List<Huffman.CodeValue>> codeByLength = dict.keySet().stream().collect(Collectors.groupingBy(c -> c.length));
         int bitsRead = 0;
         int count = 0;
-        while (count < len) {
+        while (compressed.hasRemaining() && restored.hasRemaining()) {
             for (int codeLength: codeLengths) {
                 int pos = compressed.position();
                 int value = CodeValue.read(compressed, bitsRead, codeLength);
@@ -129,8 +136,12 @@ public class Huffman implements Codec {
                     break;
                 }
             }
+
         }
-        return restored.array();
+        byte[] result = new byte[count];
+        restored.position(0);
+        restored.get(result, 0, count);
+        return result;
     }
 
     static Map<CodeValue, Byte> readDict(ByteBuffer compressed) {
@@ -139,7 +150,7 @@ public class Huffman implements Codec {
         for (int i = 0; i < dictLength; i++) {
             byte b = compressed.get();
             int codeLength = compressed.get();
-            int codeValue = compressed.getShort();
+            int codeValue = compressed.getInt();
             dict.put(new CodeValue(codeValue, codeLength), b);
         }
         return dict;
@@ -149,7 +160,7 @@ public class Huffman implements Codec {
     public Map<String, Object> getLastCompressionProperties() {
         return Map.of(
                 "dict length", dict.size(),
-                "dict size, bytes", 4*dict.size()+1,
+                "dict size, bytes", 6*dict.size()+1,
                 "shortest code", dict.values().stream().min(Comparator.comparingInt(cv -> cv.length)).map(cv -> cv.length).orElse(-1),
                 "longest code", dict.values().stream().max(Comparator.comparingInt(cv -> cv.length)).map(cv -> cv.length).orElse(-1)
         );
@@ -292,7 +303,7 @@ public class Huffman implements Codec {
             } else {
                 int result = (current & ((1 << bitsAvailable) - 1)) << (codeLength - bitsAvailable);
                 read += bitsAvailable;
-                while (read < codeLength) {
+                while (read < codeLength && buffer.hasRemaining()) {
                     buffer.mark();
                     current = Byte.toUnsignedInt(buffer.get());
                     if (codeLength - read < 8) {

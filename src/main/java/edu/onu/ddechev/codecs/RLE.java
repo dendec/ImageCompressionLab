@@ -1,13 +1,14 @@
 package edu.onu.ddechev.codecs;
 
+import javafx.scene.image.Image;
+import javafx.scene.image.WritableImage;
+import javafx.scene.image.WritablePixelFormat;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.InvalidParameterException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class RLE implements Codec {
 
@@ -17,12 +18,13 @@ public class RLE implements Codec {
 
     @Override
     public void compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
-        stream.write(compressChannel(serializedImage.getR()));
-        stream.write(compressChannel(serializedImage.getG()));
-        stream.write(compressChannel(serializedImage.getB()));
+        stream.write(compress(serializedImage.getR()));
+        stream.write(compress(serializedImage.getG()));
+        stream.write(compress(serializedImage.getB()));
     }
 
-    private byte[] compressChannel(byte[] data) {
+    @Override
+    public byte[] compress(byte[] data) {
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         int index = 0;
         do {
@@ -42,34 +44,65 @@ public class RLE implements Codec {
     }
 
     @Override
-    public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) throws IOException {
-        Integer length = width * height;
-        sameCounts.clear();
-        diffCounts.clear();
-        byte[] r = restoreChannel(compressed, length);
-        byte[] g = restoreChannel(compressed, length);
-        byte[] b = restoreChannel(compressed, length);
-        return new SerializedImage(width, height, r, g, b);
+    public Image restoreImage(byte[] compressed) {
+        ByteBuffer buffer = ByteBuffer.wrap(compressed);
+        int width = Short.valueOf(buffer.getShort()).intValue();
+        int height = Short.valueOf(buffer.getShort()).intValue();
+        WritableImage image = new WritableImage(width, height);
+        buffer = buffer.slice();
+        byte[] compressedData = new byte[buffer.limit()];
+        buffer.get(compressedData);
+        try {
+            byte[] data = restore(compressedData);
+            int channelLength = data.length / 3;
+            byte[] r = Arrays.copyOfRange(data, 0, channelLength);
+            byte[] g = Arrays.copyOfRange(data, channelLength, 2*channelLength);
+            byte[] b = Arrays.copyOfRange(data, 2*channelLength, 3*channelLength);
+            SerializedImage serializedImage = new SerializedImage(width, height, r, g, b);
+            image.getPixelWriter().setPixels(0, 0, serializedImage.getWidth(), serializedImage.getHeight(), WritablePixelFormat.getByteRgbInstance(), serializedImage.get(), 0, serializedImage.getWidth() * 3);
+            return image;
+        } catch (IOException e) {
+            throw new RuntimeException(String.format("Restoration error %s", e));
+        }
     }
 
-    public byte[] restoreChannel(ByteBuffer compressed, Integer length) {
-        byte[] result = new byte[length];
+    @Override
+    public byte[] restore(byte[] compressed) throws IOException {
+        ByteBuffer buffer = ByteBuffer.wrap(compressed);
+        byte[] result = new byte[getLength(buffer)];
         int index = 0;
+        do {
+            int current = Byte.toUnsignedInt(buffer.get());
+            int flag = current >> 7;
+            int count = current & 0B01111111;
+            if (flag == 1) { // repeat
+                byte value = buffer.get();
+                Arrays.fill(result, index, index + count, value);
+                sameCounts.add(count);
+            } else { // copy
+                buffer.get(result, index, count);
+                diffCounts.add(count);
+            }
+            index += count;
+        } while (buffer.hasRemaining());
+        return result;
+    }
+
+    private int getLength(ByteBuffer compressed) {
+        int length = 0;
         do {
             int current = Byte.toUnsignedInt(compressed.get());
             int flag = current >> 7;
             int count = current & 0B01111111;
             if (flag == 1) { // repeat
-                byte value = compressed.get();
-                Arrays.fill(result, index, index + count, value);
-                sameCounts.add(count);
+                compressed.position(compressed.position()+1);
             } else { // copy
-                compressed.get(result, index, count);
-                diffCounts.add(count);
+                compressed.position(compressed.position()+count);
             }
-            index += count;
-        } while (index < length);
-        return result;
+            length += count;
+        } while (compressed.hasRemaining());
+        compressed.position(0);
+        return length;
     }
 
     private Integer count(int index, byte[] data, boolean isEquals) {

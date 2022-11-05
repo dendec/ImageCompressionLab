@@ -51,23 +51,13 @@ public class HuffmanTest {
         Huffman huffman = new Huffman();
         Map<Byte, Huffman.CodeValue> dict = new HashMap<>();
         Map<Byte, Integer> table = getFrequencyTable(data);
-//        System.out.println(table.entrySet().stream()
-//                .map(e -> String.format("%s: %d", new String(new byte[]{e.getKey()}), e.getValue()))
-//                .collect(Collectors.joining("\n")));
         Node<TreeValue> tree = buildTree(table);
-        //System.out.println(tree);
         buildDict(tree, dict, new boolean[]{});
-//        System.out.println(dict.entrySet().stream()
-//                .map(e -> String.format("%s: %s", new String(new byte[]{e.getKey()}), e.getValue()))
-//                .collect(Collectors.joining("\n")));
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         huffman.compress(data, stream, dict);
 
         ByteBuffer buffer = ByteBuffer.wrap(stream.toByteArray());
         Map<CodeValue, Byte> dictRestored = readDict(buffer);
-//        System.out.println(dictRestored.entrySet().stream()
-//                .map(e -> String.format("%s: %s", e.getKey(), new String(new byte[]{e.getValue()})))
-//                .collect(Collectors.joining("\n")));
         byte[] restored = huffman.restore(buffer, dictRestored, data.length);
         System.out.println(new String(restored));
         Assertions.assertArrayEquals(data, restored);
@@ -114,7 +104,7 @@ public class HuffmanTest {
         int written = code.write(buffer, offset);
         Assertions.assertEquals(length, written);
         Assertions.assertArrayEquals(new byte[]{1, 0b0110_0011, (byte)0b1000_0000, 0}, buffer.array());
-        buffer.reset();
+        buffer.position(0);
         int valueRestored = Huffman.CodeValue.read(buffer, offset, length);
         Assertions.assertEquals(value, valueRestored);
     }
@@ -132,7 +122,7 @@ public class HuffmanTest {
                 int written = code.write(buffer, offset);
                 Assertions.assertEquals(length, written);
 
-                buffer.reset();
+                buffer.position(0);
                 int valueRestored = Huffman.CodeValue.read(buffer, offset, length);
                 Assertions.assertEquals(value, valueRestored);
             }

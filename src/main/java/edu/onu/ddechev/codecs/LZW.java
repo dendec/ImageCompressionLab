@@ -16,15 +16,17 @@ public abstract class LZW implements Codec {
     private Integer unknownCodeCount;
 
     @Override
-    public void compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
+    public byte[] compress(byte[] data) throws IOException {
         List<Integer> codes = new ArrayList<>();
         codes.add(CLEAR_CODE);
-        compress(serializedImage.data(), codes);
+        compress(data, codes);
         codes.add(END_CODE);
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
         writeCodes(codes, stream);
+        return stream.toByteArray();
     }
 
-    private void compress(byte[] data, List<Integer> codes) throws IOException {
+    void compress(byte[] data, List<Integer> codes) throws IOException {
         Table table = new Table(getCodeLength());
         ByteArrayOutputStream curStr = new ByteArrayOutputStream();
         for (byte b : data) {
@@ -48,12 +50,12 @@ public abstract class LZW implements Codec {
     }
 
     @Override
-    public SerializedImage restore(ByteBuffer compressed, Integer width, Integer height) {
+    public byte[] restore(byte[] compressed) {
+        ByteBuffer compressedBuffer = ByteBuffer.wrap(compressed);
         Table table = new Table(getCodeLength());
-        List<Integer> codesList = readCodes(compressed);
+        List<Integer> codesList = readCodes(compressedBuffer);
         Iterator<Integer> codes = codesList.iterator();
-        int length = width * height;
-        ByteBuffer accumulator = ByteBuffer.allocate(length * 3); // 3 channels
+        ByteBuffer accumulator = ByteBuffer.allocate(compressed.length * 1000);
         Integer code = codes.next();
         Integer prevCode = null;
         tablesCount = 0;
@@ -86,14 +88,10 @@ public abstract class LZW implements Codec {
             prevCode = code;
             code = codes.next();
         }
+        byte[] result = new byte[accumulator.position()];
         accumulator.position(0);
-        /*byte[] r = new byte[length];
-        accumulator.get(r, 0, length);
-        byte[] g = new byte[length];
-        accumulator.get(g, 0, length);
-        byte[] b = new byte[length];
-        accumulator.get(b, 0, length);*/
-        return new SerializedImage(width, height, accumulator.array());
+        accumulator.get(result, 0, result.length);
+        return result;
     }
 
     @Override
@@ -109,7 +107,7 @@ public abstract class LZW implements Codec {
 
     protected abstract List<Integer> readCodes(ByteBuffer compressed);
 
-    protected abstract void writeCodes(List<Integer> codes, ByteArrayOutputStream stream) throws IOException;
+    abstract void writeCodes(List<Integer> codes, ByteArrayOutputStream stream) throws IOException;
 
     private static class Table {
         private final Map<String, Integer> tableByBytes;
@@ -179,7 +177,7 @@ public abstract class LZW implements Codec {
         }
 
         public Boolean hasCapacity() {
-            return (capacity == null) || (size() < capacity);
+            return (capacity == null) || (codeCounter < capacity);
         }
 
         @Override

@@ -27,7 +27,7 @@ public class CompressionAnalyzer {
         if (codec != null) {
             ProfilingUtil.ProfilingResult<byte[]> compressionResult = ProfilingUtil.executionTime(() -> codec.compress(image));
             byte[] compressed = compressionResult.getResult();
-            ProfilingUtil.ProfilingResult<Image> restoreResult = ProfilingUtil.executionTime(() -> codec.restore(compressed));
+            ProfilingUtil.ProfilingResult<Image> restoreResult = ProfilingUtil.executionTime(() -> codec.restoreImage(compressed));
             int compressedSize = compressed.length - Codec.HEADER_SIZE;
             result.addCompressionProperty("compression", codec.getClass().getSimpleName());
             result.addCompressionProperty("compression time, ms", compressionResult.getExecutionTime());
