@@ -1,11 +1,6 @@
 package edu.onu.ddechev.codecs;
 
-import javafx.scene.image.Image;
-import javafx.scene.image.WritableImage;
-import javafx.scene.image.WritablePixelFormat;
-
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.InvalidParameterException;
 import java.util.*;
@@ -17,14 +12,26 @@ public class RLE implements Codec {
     private final List<Integer> diffCounts = new ArrayList<>();
 
     @Override
-    public void compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
-        stream.write(compress(serializedImage.getR()));
-        stream.write(compress(serializedImage.getG()));
-        stream.write(compress(serializedImage.getB()));
+    public byte[] compress(byte[] data) {
+        byte[] compressedR = compressChannel(getChannel(0, data));
+        byte[] compressedG = compressChannel(getChannel(1, data));
+        byte[] compressedB = compressChannel(getChannel(2, data));
+        return ByteBuffer
+                .allocate(compressedR.length + compressedG.length + compressedB.length)
+                .put(compressedR).put(compressedG).put(compressedB)
+                .array();
     }
 
-    @Override
-    public byte[] compress(byte[] data) {
+    private byte[] getChannel(int offset, byte[] data) {
+        int size = data.length / 3;
+        byte[] channel = new byte[size];
+        for (int i = 0; i < size; i++) {
+            channel[i] = data[i*3+offset];
+        }
+        return channel;
+    }
+
+    public byte[] compressChannel(byte[] data) {
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         int index = 0;
         do {
@@ -44,32 +51,9 @@ public class RLE implements Codec {
     }
 
     @Override
-    public Image restoreImage(byte[] compressed) {
+    public byte[] restore(byte[] compressed) {
         ByteBuffer buffer = ByteBuffer.wrap(compressed);
-        int width = Short.valueOf(buffer.getShort()).intValue();
-        int height = Short.valueOf(buffer.getShort()).intValue();
-        WritableImage image = new WritableImage(width, height);
-        buffer = buffer.slice();
-        byte[] compressedData = new byte[buffer.limit()];
-        buffer.get(compressedData);
-        try {
-            byte[] data = restore(compressedData);
-            int channelLength = data.length / 3;
-            byte[] r = Arrays.copyOfRange(data, 0, channelLength);
-            byte[] g = Arrays.copyOfRange(data, channelLength, 2*channelLength);
-            byte[] b = Arrays.copyOfRange(data, 2*channelLength, 3*channelLength);
-            SerializedImage serializedImage = new SerializedImage(width, height, r, g, b);
-            image.getPixelWriter().setPixels(0, 0, serializedImage.getWidth(), serializedImage.getHeight(), WritablePixelFormat.getByteRgbInstance(), serializedImage.get(), 0, serializedImage.getWidth() * 3);
-            return image;
-        } catch (IOException e) {
-            throw new RuntimeException(String.format("Restoration error %s", e));
-        }
-    }
-
-    @Override
-    public byte[] restore(byte[] compressed) throws IOException {
-        ByteBuffer buffer = ByteBuffer.wrap(compressed);
-        byte[] result = new byte[getLength(buffer)];
+        byte[] restored = new byte[getLength(buffer)];
         int index = 0;
         do {
             int current = Byte.toUnsignedInt(buffer.get());
@@ -77,14 +61,25 @@ public class RLE implements Codec {
             int count = current & 0B01111111;
             if (flag == 1) { // repeat
                 byte value = buffer.get();
-                Arrays.fill(result, index, index + count, value);
+                Arrays.fill(restored, index, index + count, value);
                 sameCounts.add(count);
             } else { // copy
-                buffer.get(result, index, count);
+                buffer.get(restored, index, count);
                 diffCounts.add(count);
             }
             index += count;
         } while (buffer.hasRemaining());
+
+        byte[] result = new byte[restored.length];
+        int channelLength = restored.length / 3;
+        byte[] r = Arrays.copyOfRange(restored, 0, channelLength);
+        byte[] g = Arrays.copyOfRange(restored, channelLength, 2*channelLength);
+        byte[] b = Arrays.copyOfRange(restored, 2*channelLength, 3*channelLength);
+        for (int i = 0; i < r.length; i++) {
+            result[i*3] = r[i];
+            result[i*3+1] = g[i];
+            result[i*3+2] = b[i];
+        }
         return result;
     }
 

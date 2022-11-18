@@ -24,19 +24,19 @@ public interface Codec {
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         try {
             stream.write(ByteBuffer.allocate(HEADER_SIZE).putShort(width).putShort(height).array());
-            SerializedImage serializedImage = new SerializedImage(width, height);
             int[] buffer = new int[width*height];
             reader.getPixels(0,0, width, height, WritablePixelFormat.getIntArgbInstance(), buffer, 0, width);
-            serializedImage.add(buffer);
-            compress(serializedImage, stream);
+            byte[] data = new byte[buffer.length*3];
+            for (int i = 0; i<buffer.length; i++) {
+                data[i*3] = Integer.valueOf((buffer[i] & 0x00FF0000) >> 16).byteValue();
+                data[i*3+1] = Integer.valueOf((buffer[i] & 0x0000FF00) >> 8).byteValue();
+                data[i*3+2] = Integer.valueOf((buffer[i] & 0x000000FF)).byteValue();
+            }
+            stream.write(compress(data));
             return stream.toByteArray();
         } catch (IOException e) {
             throw new RuntimeException(String.format("Compression error %s", e));
         }
-    }
-
-    default void compress(SerializedImage serializedImage, ByteArrayOutputStream stream) throws IOException {
-        stream.write(compress(serializedImage.data()));
     }
 
     byte[] compress(byte[] data) throws IOException;
@@ -50,8 +50,11 @@ public interface Codec {
         byte[] compressedData = new byte[buffer.limit()];
         buffer.get(compressedData);
         try {
-            SerializedImage serializedImage = new SerializedImage(width, height, restore(compressedData));//(buffer, width, height);
-            image.getPixelWriter().setPixels(0, 0, serializedImage.getWidth(), serializedImage.getHeight(), WritablePixelFormat.getByteRgbInstance(), serializedImage.get(), 0, serializedImage.getWidth() * 3);
+            byte[] data = restore(compressedData);
+            image.getPixelWriter().setPixels(0, 0,
+                    width, height,
+                    WritablePixelFormat.getByteRgbInstance(), data,
+                    0, width * 3);
             return image;
         } catch (IOException e) {
             throw new RuntimeException(String.format("Restoration error %s", e));
