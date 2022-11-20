@@ -13,7 +13,7 @@ import java.util.Map;
 
 public interface Codec {
 
-    List<Class<? extends Codec>> IMPLEMENTATIONS = List.of(NoOp.class, RLE.class, LZW12.class, Huffman.class);
+    List<Class<? extends Codec>> IMPLEMENTATIONS = List.of(NoOp.class, RLE.class, LZW.class, Huffman.class);
 
     Integer HEADER_SIZE = 4;
 

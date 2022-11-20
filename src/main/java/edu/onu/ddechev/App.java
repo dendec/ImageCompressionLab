@@ -17,7 +17,7 @@ public class App extends Application {
 
     @Override
     public void start(Stage stage) throws IOException {
-        scene = new Scene(loadFXML("primary"), 1280, 800);
+        scene = new Scene(loadFXML("primary"), 1280, 860);
         stage.setResizable(false);
         stage.setTitle("Спец курс №2 - Денис Дечев");
         stage.setScene(scene);

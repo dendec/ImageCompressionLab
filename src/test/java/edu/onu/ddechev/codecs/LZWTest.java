@@ -17,7 +17,7 @@ public class LZWTest {
     @Test
     public void endToEndTest1() throws IOException {
         byte[] data = "ABCDEABCDEABCDEABCDEABCDEACDEACDEACDEADEADEDDD".getBytes(StandardCharsets.UTF_8);
-        LZW12 lzw = new LZW12();
+        LZW lzw = new LZW();
         byte[] compressed = lzw.compress(data);
         byte[] restored = lzw.restore(compressed);
         Assertions.assertArrayEquals(data, restored);
@@ -35,7 +35,7 @@ public class LZWTest {
         for (int i = 0; i < bytesList.size(); i++) {
             data[i]=bytesList.get(i);
         }
-        LZW12 lzw = new LZW12();
+        LZW lzw = new LZW();
         byte[] compressed = lzw.compress(data);
         byte[] restored = lzw.restore(compressed);
         System.out.println(Arrays.toString(data));
@@ -45,7 +45,7 @@ public class LZWTest {
 
     @Test
     public void endToEndTest() throws IOException {
-        LZW12 lzw = new LZW12();
+        LZW lzw = new LZW();
         for (int length = 10000; length <= 20000; length++) {
             byte[] data = new byte[length];
             new Random().nextBytes(data);

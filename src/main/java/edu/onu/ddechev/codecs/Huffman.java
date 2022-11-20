@@ -104,12 +104,6 @@ public class Huffman implements Codec {
         return queue.poll();
     }
 
-//    @Override
-//    public SerializedImage restoreImage(ByteBuffer compressed, Integer width, Integer height) {
-//        byte[] data = restore(compressed, readDict(compressed), width * height * 3);
-//        return new SerializedImage(width, height, data);
-//    }
-
     byte[] restore(ByteBuffer compressed, Map<CodeValue, Byte> dict, int len) {
         ByteBuffer restored = ByteBuffer.allocate(len);
         List<Integer> codeLengths = dict.keySet().stream().map(c -> c.length).distinct().sorted().collect(Collectors.toList());
@@ -136,7 +130,6 @@ public class Huffman implements Codec {
                     break;
                 }
             }
-
         }
         byte[] result = new byte[count];
         restored.position(0);
@@ -245,10 +238,10 @@ public class Huffman implements Codec {
         }
 
         public CodeValue(boolean[] treePath) {
-            this.length = Integer.valueOf(treePath.length).byteValue();
+            this.length = Integer.valueOf(treePath.length).byteValue() + 1;
             int v = 0;
-            for (int i = 0; i < length; i++) {
-                if (treePath[length-i-1]) {
+            for (int i = 0; i < length-1; i++) {
+                if (treePath[length-i-2]) {
                     v += Math.pow(2, i);
                 }
             }
