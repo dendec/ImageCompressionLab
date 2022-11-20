@@ -52,12 +52,12 @@ public class LZW implements Codec {
     }
 
     @Override
-    public byte[] restore(byte[] compressed) {
+    public byte[] restore(byte[] compressed) throws IOException {
         ByteBuffer compressedBuffer = ByteBuffer.wrap(compressed);
         Table table = new Table(CODE_LENGTH);
         List<Integer> codesList = readCodes(compressedBuffer);
         Iterator<Integer> codes = codesList.iterator();
-        ByteBuffer accumulator = ByteBuffer.allocate(compressed.length * 1000);
+        ByteArrayOutputStream arrayOutputStream = new ByteArrayOutputStream();
         Integer code = codes.next();
         Integer prevCode = null;
         tablesCount = 0;
@@ -72,7 +72,7 @@ public class LZW implements Codec {
                 if (code == END_CODE) {
                     break;
                 }
-                accumulator.put(table.get(code));
+                arrayOutputStream.write(table.get(code));
             } else {
                 prevStr = table.get(prevCode);
                 if (table.has(code)) {
@@ -84,16 +84,13 @@ public class LZW implements Codec {
                     newChain = ByteBuffer.allocate(prevStr.length + 1).put(prevStr).put(prevStr[0]).array();
                     output = newChain;
                 }
-                accumulator.put(output);
+                arrayOutputStream.write(output);
                 table.add(newChain);
             }
             prevCode = code;
             code = codes.next();
         }
-        byte[] result = new byte[accumulator.position()];
-        accumulator.position(0);
-        accumulator.get(result, 0, result.length);
-        return result;
+        return arrayOutputStream.toByteArray();
     }
 
     @Override

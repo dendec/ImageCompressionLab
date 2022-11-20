@@ -4,6 +4,7 @@
     <groupId>edu.onu.ddechev</groupId>
     <artifactId>ImageCompressionLab</artifactId>
     <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>11</maven.compiler.source>
@@ -23,7 +24,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>RELEASE</version>
+            <version>5.9.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -40,9 +41,9 @@
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.3</version>
+                <version>0.0.8</version>
                 <configuration>
-                    <mainClass>edu.onu.ddechev.App</mainClass>
+                    <mainClass>edu.onu.ddechev/edu.onu.ddechev.App</mainClass>
                 </configuration>
             </plugin>
         </plugins>
