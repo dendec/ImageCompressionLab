@@ -1,6 +1,7 @@
 # Image Compression Lab
 Small educational project with implementation loseless image compression algorithms: RLE, LZW, Huffman. 
 It allows encoding and decoding images, and got some insights about algorithm operation. 
+Please refer to [report](https://docs.google.com/document/d/19FMJmXylSrz0jr-ieh1KRsAFjNoRg2TzuM9fehXbHxU/view#) for details.
 
 ## Build and run
 
