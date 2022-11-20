@@ -6,7 +6,7 @@ It allows encoding and decoding images, and got some insights about algorithm op
 
 `mvn javafx:run`
 
-## [License](LICENSE.md)
+## [License](LICENSE)
 MIT © [Denis Dechev](https://github.com/dendec)
 
 Development was done as laboratory task in scope of special course in [Odessa I.I.Mechnikov National University](http://onu.edu.ua/en/).
